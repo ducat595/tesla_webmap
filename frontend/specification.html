@@ -1,0 +1,60 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tesla Webmap 機能仕様書</title><link rel="stylesheet" href="help.css"><header><a href="help.html">ヘルプへ戻る</a><a href="tesla_webmap_specification_v6.docx">Word版をダウンロード</a></header><main>
+<h1>Tesla Webmap 機能仕様書</h1>
+<p>版数 6　作成日 2026年10月9日</p>
+<p>本書は、iPhoneの位置情報をTesla Model 3のブラウザへ共有し、経由地付きのWebナビを使うアプリの実装仕様をまとめる。対象車両は利用者の2026年式Model 3。運用者は公開設定、認証、外部APIの条件を確認し、利用者は接続と案内の制約を理解して使用する。Tesla標準ナビへの送信処理は実装済みだが、外部の認証と経由地対応の署名プロキシを設定するまで実送信できない。</p>
+<h2>1 対象範囲と実装状況</h2>
+<div class="table-scroll"><table><tr><th>機能</th><th>実装状況</th><th>条件</th></tr><tr><td>iPhoneの現在地共有</td><td>実装済み</td><td>Safariで位置情報を許可し、画面を表示</td></tr><tr><td>4桁コードと接続許可</td><td>実装済み</td><td>テスラで4桁入力、iPhoneで要求を許可</td></tr><tr><td>経由地の追加と並べ替え</td><td>実装済み</td><td>最大8件、共有ボタンで確定</td></tr><tr><td>ルート表示と日本語音声</td><td>実装済み</td><td>音声はブラウザの対応と操作による有効化が必要</td></tr><tr><td>Tesla標準ナビへ地点送信</td><td>接続処理を実装</td><td>OAuth、仮想キー、対応プロキシ、Google Place IDが必要</td></tr><tr><td>車両GPSの取得</td><td>対象外</td><td>位置情報はiPhoneから受信</td></tr><tr><td>Googleマップアプリの画面転送</td><td>対象外</td><td>独自のWeb地図を表示</td></tr><tr><td>自動運転との連携</td><td>対象外</td><td>操舵や運転制御のコマンドを実装しない</td></tr></table></div>
+<h2>2 システム構成</h2>
+<p>GitHub Pagesはfrontendの静的ファイルを配信する。iPhoneは位置情報をRenderのPython中継APIへ送る。テスラのブラウザは接続許可を受けた後、中継APIから位置情報と地点一覧を取得する。Webルートは各端末が地図サービスへ問い合わせて描画する。車側とスマホ側のルート検索は別々に実行するため、各サービスの更新時刻などで表示が異なる場合がある。</p>
+<p>Teslaへの送信は中継APIから設定済みの署名プロキシへ行う。プロキシがコマンドを署名し、Fleet APIを通じて車両へ送る。中継APIはナビ送信先のVINとコマンド種別を固定し、ブラウザから別車両や任意コマンドを指定させない。</p>
+<div class="table-scroll"><table><tr><th>配置</th><th>ファイルまたは役割</th></tr><tr><td>frontend/index.html</td><td>メイン画面と操作部品</td></tr><tr><td>frontend/app.js</td><td>位置共有と車載接続の通信</td></tr><tr><td>frontend/pairing.js</td><td>接続許可と初回の所有者端末登録</td></tr><tr><td>frontend/navigation.js</td><td>目的地、経由地、ルート、音声、Tesla送信</td></tr><tr><td>frontend/nav-core.js</td><td>距離、ルート投影、案内文の計算</td></tr><tr><td>frontend/help.html</td><td>利用手順とトラブル対処</td></tr><tr><td>frontend/specification.html</td><td>ブラウザで読める仕様書</td></tr><tr><td>backend/server.py</td><td>セッション、接続許可、地点共有のAPI</td></tr><tr><td>backend/device_auth.py</td><td>所有者端末の署名付き認証情報</td></tr><tr><td>backend/tesla_bridge.py</td><td>対応プロキシへの経由地送信</td></tr><tr><td>tests</td><td>API、画面ロジック、計算の自動テスト</td></tr></table></div>
+<h2>3 画面と操作</h2>
+<p>端末の役割は「iPhone 現在地を送る」と「テスラ 地図を見る」から選ぶ。中継URLと任意のGoogle APIキーを設定する。iPhoneで共有中は役割を変更できず、先に停止する必要がある。設定変更時も共有停止または切断を求める。</p>
+<p>iPhoneは共有開始後に4桁コードを表示する。テスラは4桁コードで接続要求を作成する。両端末に同じ確認番号が表示され、iPhoneで一致を確認して許可する。確認番号は入力し直さない。拒否した要求や期限切れの要求は閲覧権限を得ない。</p>
+<p>経由地は検索結果または地図から選択し、経由地へ追加する。上へ、下へ、削除のボタンで編集する。最後に最終目的地を選び、「経由地 目的地を画面へ共有」で確定する。未共有の編集内容は送信対象ではない。両端末の共有済み通過順を確認し、ルート表示とナビ開始を操作する。</p>
+<p>ヘルプは画面上部のリンクから開く。別タブで開くため、iPhoneが元のページを非表示にすると位置更新が止まる場合がある。確認後は元のアプリへ戻る。</p>
+<h2>4 接続認証と有効期限</h2>
+<div class="table-scroll"><table><tr><th>項目</th><th>値</th><th>動作</th></tr><tr><td>表示する接続コード</td><td>4桁の数字</td><td>先頭0を保持し、稼働中のコードと重複させない</td></tr><tr><td>新規接続の受付</td><td>作成から10分</td><td>受付終了後は新しく共有開始する</td></tr><tr><td>接続要求の許可待ち</td><td>2分</td><td>期限内にiPhoneが許可または拒否</td></tr><tr><td>位置共有セッション</td><td>1時間</td><td>期限後は新規コードで再接続</td></tr><tr><td>所有者端末登録</td><td>30日</td><td>同じSafariでは所有者キーを再入力しない</td></tr><tr><td>同時セッション上限</td><td>200件</td><td>上限時は新規作成を拒否</td></tr><tr><td>端末の接続要求上限</td><td>1セッション5件</td><td>許可済み端末も上限に含む</td></tr><tr><td>接続試行の制限</td><td>接続元ごとに毎分20回</td><td>中継から見えるIPを使用</td></tr><tr><td>所有者確認の制限</td><td>接続元ごとに毎分10回</td><td>不一致の試行も数える</td></tr></table></div>
+<p>4桁コードだけでは位置情報も車両送信権限も得られない。実際の送信端末と閲覧端末の認証には、サーバーが生成した長いランダムなトークンを内部で使用する。iPhoneのみが接続を許可し、位置や目的地の書き込みとセッション削除を行える。許可した閲覧端末は位置と地点を読み取れる。</p>
+<p>所有者キーは初回登録時だけ入力する。サーバーは有効期限とランダム値を含む情報へHMAC SHA256署名を付け、端末認証情報を発行する。iPhoneは中継URLごとにこの情報をlocalStorageへ保存する。所有者キー自体は保存しない。Renderの所有者キー変更で全端末の登録が失効する。</p>
+<p>所有者確認済みiPhoneが作成または認証したセッションでは、許可した閲覧端末もTeslaナビへ送信できる。接続許可は位置閲覧だけでなく、この送信権限を与える操作になる。全閲覧端末の解除は共有停止で行う。</p>
+<h2>5 データと保持方針</h2>
+<div class="table-scroll"><table><tr><th>データ</th><th>保存先</th><th>保持期間</th></tr><tr><td>現在地と精度</td><td>中継サーバーのメモリ</td><td>最新1件、共有停止または期限まで</td></tr><tr><td>目的地と経由地</td><td>中継サーバーのメモリ</td><td>最新の共有内容、共有停止または期限まで</td></tr><tr><td>セッションと許可済み端末</td><td>中継サーバーのメモリ</td><td>1時間以内、再起動で消失</td></tr><tr><td>所有者端末の認証情報</td><td>iPhoneのlocalStorage</td><td>30日有効、消去またはキー変更で失効</td></tr><tr><td>中継URL、地図キー、役割</td><td>各端末のlocalStorage</td><td>利用者による消去まで</td></tr><tr><td>目的地の検索結果</td><td>端末メモリ</td><td>ページを閉じるまで</td></tr><tr><td>Tesla認証とVIN</td><td>Renderの環境変数</td><td>運用者が更新または削除するまで</td></tr></table></div>
+<p>位置情報の項目はlatitude、longitude、accuracy、receivedAt。receivedAtはサーバーの受信時刻であり、GPSの測定時刻ではない。地点はlatitude、longitude、nameと任意のplaceIdで表す。waypointsは訪問順の配列で、destinationは最終目的地。destinationVersionは共有内容を更新するたびに増加する。</p>
+<p>サーバーは位置履歴を保存しない。期限切れセッションのメモリ削除は次のAPIアクセス時に行う。タブを閉じるだけでは即時削除されない。共有停止の通信に失敗した場合は再試行し、削除できなければ期限で失効する。アクセスログへ座標や認証情報を出す処理は実装していない。</p>
+<h2>6 地図とナビの仕様</h2>
+<div class="table-scroll"><table><tr><th>項目</th><th>条件または値</th></tr><tr><td>位置送信</td><td>GPS更新時、最短2秒間隔</td></tr><tr><td>車載側の受信</td><td>3秒間隔</td></tr><tr><td>古い位置の判定</td><td>受信から15秒超</td></tr><tr><td>精度による案内停止</td><td>accuracyが80m超</td></tr><tr><td>通常の音声案内</td><td>次の地点の約300m前と約50m前</td></tr><tr><td>ルート逸脱の判定</td><td>60mまたは精度の2倍の大きい方を超過</td></tr><tr><td>自動再検索</td><td>連続3回の逸脱、最大1分に1回</td></tr><tr><td>到着の判定</td><td>終端まで35m未満かつ終端への直線距離35m未満、精度50m以下</td></tr><tr><td>経由地の通過判定</td><td>ルート上の投影位置が経由地点を20m超えて進んだ場合</td></tr></table></div>
+<p>位置送信はGPS更新が来た時に行うため、必ず2秒ごとに送る保証はない。大きな位置の飛びを検出した場合は案内を停止し、手動のルート再検索を促す。距離と経由地通過は経路形状への簡易投影で判定する。交差点、並走道路、折り返しなどで位置照合がずれる場合がある。残り時間は残距離の比率からの概算である。</p>
+<p>音声はWeb Speech APIの日本語音声合成を使い、端末ごとに有効化する。日本語音声がある場合は優先して選ぶ。実際の出力やBluetoothオーディオへの転送は端末の対応と設定に依存する。ブラウザで音声再生できない場合はiPhone側で案内を有効にする。</p>
+<p>キー未設定時はOpenStreetMapの地図、Nominatimの手動検索、OSRMの試験用ルートサービスを使う。検索は日本を対象に、入力ごとの自動検索を行わない。Googleを使う場合はMaps JavaScript API、Routes API、住所検索用のGeocoding APIと課金設定が必要。経由地の訪問順は変更せず、ルートの自動最適化は行わない。どちらのルートも本版では渋滞を考慮しない。</p>
+<h2>7 Tesla標準ナビへの送信</h2>
+<p>本版の送信対象は、共有済みの経由地一覧と最終目的地である。Web地図の道路形状やGoogleマップアプリの画面は送信しない。Googleマップアプリから経由地を自動読み込みする機能もない。</p>
+<p>全ての地点にGoogle Place IDが必要。Google地図で検索した地点にはPlace IDを保持する。地図タップ、座標入力、OSM検索の場合は別途入力する。送信順は経由地1から最後の経由地、最終目的地の順。対応プロキシへnavigation_waypoints_requestを1回送る。payloadのwaypointsはrefIdとPlace IDをカンマで連結した文字列である。</p>
+<p>実送信にはTesla開発者登録、所有者OAuth、車両の仮想キー、経由地対応の署名プロキシが必要。調査時点の公式vehicle commandプロキシmainには対象コマンドがなく、同梱Docker構成は未マージPR 443の固定コミットを使う任意の構築例。Docker構築と実車接続は未確認。OAuthトークンの自動更新とアプリ内ログインは未実装で、運用者が環境変数を更新する。</p>
+<p>送信前に共有内容の版を照合し、未共有の編集や古い版で送信しない。同じ送信IDはセッション内で結果を再利用し、外部へ重複送信しない。車両への同時送信は1件に制限する。通信結果が不明な場合は自動再送しない。APIのresponse.resultがtrueの場合のみ受付成功と表示し、車載ナビの内容を読み戻す確認は行わない。Teslaが経路を再計算するため、Web地図と走行経路が異なる場合がある。</p>
+<h2>8 中継API</h2>
+<div class="table-scroll"><table><tr><th>メソッドとパス</th><th>用途</th><th>認証</th></tr><tr><td>GET /health</td><td>稼働確認</td><td>不要</td></tr><tr><td>POST /sessions</td><td>共有セッション作成</td><td>任意で所有者端末の認証情報</td></tr><tr><td>GET /sessions/{code}</td><td>最新位置と地点一覧の取得</td><td>送信端末または許可済み閲覧端末</td></tr><tr><td>PUT /sessions/{code}</td><td>最新位置または地点一覧の更新</td><td>送信端末</td></tr><tr><td>DELETE /sessions/{code}</td><td>共有停止と削除</td><td>送信端末</td></tr><tr><td>POST /sessions/{code}/pair</td><td>車載端末の接続要求</td><td>4桁コード、有効期限と試行制限</td></tr><tr><td>GET /sessions/{code}/pair-status</td><td>許可状況の確認</td><td>要求した端末のトークン</td></tr><tr><td>GET /sessions/{code}/pending</td><td>許可待ち要求一覧</td><td>送信端末</td></tr><tr><td>POST /sessions/{code}/approve</td><td>接続の許可または拒否</td><td>送信端末</td></tr><tr><td>POST /owner-device</td><td>所有者端末の初回登録</td><td>初回の所有者キー</td></tr><tr><td>POST /sessions/{code}/authorize</td><td>既存セッションへ所有者権限を付与</td><td>送信端末と所有者端末の認証情報</td></tr><tr><td>POST /sessions/{code}/tesla-navigate</td><td>地点一覧を車両へ送信</td><td>認証済み所有者セッションの許可端末</td></tr></table></div>
+<p>AuthorizationのBearerトークンを利用する。所有者端末情報はX-Tesla-Device-Tokenヘッダーで送る。GETの位置情報応答に、所有者端末情報や送信トークンは含めない。成功応答はJSONで、キャッシュを禁止する。</p>
+<p>代表的な失敗は400の入力不正、403の認証または許可不足、404のセッション失効、409の版不一致または処理中、410の接続受付期限切れ、429の試行上限、502のTesla側受付失敗、503の接続設定不足、504の送信結果不明。Tesla送信では200応答のみを受付成功として扱う。</p>
+<h2>9 公開と運用設定</h2>
+<div class="table-scroll"><table><tr><th>設定</th><th>内容</th></tr><tr><td>GitHub Pages</td><td>mainブランチのroot、画面はfrontend配下</td></tr><tr><td>RenderのBuild Command</td><td>python -m compileall backend</td></tr><tr><td>RenderのStart Command</td><td>python backend/server.py</td></tr><tr><td>Health Check Path</td><td>/health</td></tr><tr><td>ALLOWED_ORIGINS</td><td>GitHub Pagesのオリジン、末尾スラッシュやパスを除く</td></tr><tr><td>PORT</td><td>Renderが指定する待受ポート</td></tr><tr><td>TESLA_COMMAND_PROXY_URL</td><td>経由地対応署名プロキシのHTTPS URL</td></tr><tr><td>TESLA_ACCESS_TOKEN</td><td>所有者OAuthのアクセストークン</td></tr><tr><td>TESLA_VIN</td><td>固定送信先の17文字VIN</td></tr><tr><td>TESLA_OWNER_SECRET</td><td>32文字以上のランダムな所有者キー</td></tr></table></div>
+<p>中継はPython標準ライブラリのみを使う単一プロセス、単一インスタンスの試験向け構成。データベースと共有メモリを使わないため、複数インスタンスへ拡張しない。Render再起動で共有は消えるが、所有者キーが同じなら端末登録は有効。</p>
+<p>CORSはALLOWED_ORIGINSに一致するオリジンへだけ許可する。アプリへ入力する中継URLにはhealthのパスを付けない。Googleのブラウザ用キーには公開URLと使用APIの制限を設定する。TLS証明書の検証を無効化しない。秘密鍵、OAuthトークン、所有者キーをGitHubへ置かない。</p>
+<h2>10 外部通信と検証範囲</h2>
+<p>地図タイルは地図表示先のサービスへ、検索語はNominatimまたはGoogleへ送る。ルート検索では現在地、経由地、目的地の座標をOSRMまたはGoogleへ送る。Tesla連携では地点のPlace IDを署名プロキシとTeslaへ送る。OSM系の公開サービスは少人数の試験向けであり、可用性や大規模運用を保証しない。</p>
+<div class="table-scroll"><table><tr><th>検証項目</th><th>結果</th></tr><tr><td>中継、認証、経由地、Tesla送信境界のHTTPテスト</td><td>10件成功、Tesla送信先はテスト用プロキシ</td></tr><tr><td>画面ロジックと実HTTP中継の組合せ</td><td>成功、DOMと地図と音声はテスト用の代替</td></tr><tr><td>距離、経路投影、案内文</td><td>成功</td></tr><tr><td>OSRMの実サービスで日本の経路取得</td><td>v3作成時に成功</td></tr><tr><td>利用者のiPhoneとTeslaでの位置共有</td><td>旧版で利用者から接続成功の報告</td></tr><tr><td>v6の実機ブラウザと実音声</td><td>未確認</td></tr><tr><td>Google実キーでのルート検索</td><td>未確認</td></tr><tr><td>Tesla標準ナビへの実送信</td><td>未確認</td></tr><tr><td>同梱署名プロキシのDocker構築</td><td>未確認</td></tr></table></div>
+<p>本版は実装済み機能の試験版であり、GoogleマップアプリやTesla標準ナビと同等の連続性を保証するものではない。iPhoneの画面ロックやアプリ切替で位置送信が止まる場合がある。車載ブラウザの走行中の利用可否、音声、外部地図表示は実車で確認する。設定と初回の操作確認は停車中に行う。</p>
+<h2>11 参照資料</h2>
+<p>Tesla Fleet API Vehicle Commands</p>
+<p>https://developer.tesla.com/docs/fleet-api/endpoints/vehicle-commands</p>
+<p>Tesla Virtual Keys Developer Guide</p>
+<p>https://developer.tesla.com/docs/fleet-api/virtual-keys/developer-guide</p>
+<p>Tesla vehicle command の経由地対応提案</p>
+<p>https://github.com/teslamotors/vehicle-command/pull/443</p>
+<p>Google Maps JavaScript Routes</p>
+<p>https://developers.google.com/maps/documentation/javascript/routes/get-a-route</p>
+<p>OSRM API</p>
+<p>https://project-osrm.org/docs/v5.24.0/api/</p>
+<p>Nominatim Usage Policy</p>
+<p>https://operations.osmfoundation.org/policies/nominatim/</p>
+</main></html>

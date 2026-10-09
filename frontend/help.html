@@ -1,0 +1,38 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tesla Webmap ヘルプ</title><link rel="stylesheet" href="help.css"></head><body>
+<header><a href="index.html">アプリを開く</a><a href="specification.html">仕様書を読む</a><a href="tesla_webmap_specification_v6.docx">仕様書のWord版</a></header>
+<main><span class="badge">v6 利用ガイド</span><h1>Tesla Webmap の使い方</h1><p class="lead">iPhoneの現在地と経由地を、テスラのブラウザへ共有するアプリです。4桁コードとiPhoneの接続許可で使い始められます。</p><p>通常のWebナビと、Tesla標準ナビへの送信は別の機能です。標準ナビへの送信には、Tesla APIの接続設定が必要です。</p>
+<nav aria-label="ヘルプの目次"><a href="#start">初期設定</a><a href="#pair">4桁で接続</a><a href="#places">目的地と経由地</a><a href="#navigation">ルートと音声</a><a href="#tesla">Teslaへ送信</a><a href="#stop">終了する</a><a href="#trouble">困ったとき</a><a href="#update">更新と公開</a></nav>
+<h2 id="start">1 初期設定</h2><ol class="steps"><li>iPhoneのSafariでアプリを開き、役割を<strong>「iPhone：現在地を送る」</strong>にします。</li><li>「中継サーバーの公開URL」に <code>https://tesla-webmap.onrender.com</code> を入力します。<strong>ハイフン「-」</strong>を使い、末尾に <code>/health</code> を付けません。</li><li>「設定を保存」を押します。</li><li>停車中のテスラで同じアプリを開き、役割を<strong>「テスラ：地図を見る」</strong>にして、同じ中継URLを保存します。</li></ol>
+<p>現在のアプリURLは <a href="https://ducat595.github.io/tesla_webmap/frontend/">https://ducat595.github.io/tesla_webmap/frontend/</a> です。独自の中継サーバーへ変更した場合は、両端末を同じURLに設定してください。</p>
+<p>Google APIキーは任意です。未設定でもOpenStreetMapの地図と試験用のルート検索で動作確認できます。Google地図を使う場合は設定欄でキーを保存し、ページを再読み込みします。</p>
+<h2 id="pair">2 4桁コードで接続する</h2><ol class="steps"><li>iPhoneで<strong>「共有を開始」</strong>を押し、Safariの位置情報を許可します。</li><li>iPhoneに表示された<strong>4桁の数字</strong>をテスラの接続コード欄へ入力して「接続」を押します。先頭の0も入力します。</li><li>テスラに表示される確認番号と、iPhoneの接続要求の確認番号が同じか見ます。</li><li>一致していれば、iPhoneで<strong>「接続を許可」</strong>を押します。確認番号を入力し直す必要はありません。</li><li>テスラで現在地のマーカーと受信時刻が更新されることを確認します。</li></ol>
+<p>身に覚えのない要求は「拒否」を押してください。4桁を知っているだけでは位置を閲覧できません。初回の所有者登録を済ませた場合、接続許可によってTeslaナビへの送信権限も引き継ぎます。</p>
+<div class="table-scroll"><table><tr><th>期限</th><th>時間</th><th>期限切れ時の操作</th></tr><tr><td>4桁コードの新規接続受付</td><td>10分</td><td>iPhoneで共有を停止し、開始し直す</td></tr><tr><td>接続要求の許可待ち</td><td>2分</td><td>テスラで接続要求を出し直す</td></tr><tr><td>位置共有</td><td>1時間</td><td>新しい4桁コードで接続し直す</td></tr><tr><td>所有者端末の登録</td><td>30日</td><td>iPhone側で初回登録をやり直す</td></tr></table></div>
+<h2 id="places">3 目的地と経由地を設定する</h2><h3>目的地だけの場合</h3><ol class="steps"><li>iPhoneの「目的地を設定」で施設名や住所を入力し、「検索」を押します。</li><li>結果を選び、<strong>「経由地・目的地を画面へ共有」</strong>を押します。</li><li>両端末の「共有済みの通過順」とルートを確認します。</li></ol>
+<h3>途中に寄る場所を追加する場合</h3><ol class="steps"><li>寄りたい場所を検索して選び、<strong>「選択した場所を経由地に追加」</strong>を押します。</li><li>必要な場所を繰り返し追加します。経由地は最大8件です。</li><li>経由地一覧の<strong>↑・↓</strong>で順序を変え、不要な場所は「削除」します。</li><li>最後に最終目的地を検索して選びます。</li><li><strong>「経由地・目的地を画面へ共有」</strong>を押して確定します。</li></ol>
+<p>経由地を追加・並べ替えただけでは車載側へ反映されません。共有ボタンを押してください。目的地は最後に通る場所です。経由順は自動で最適化せず、一覧の順を使います。</p>
+<p>場所の指定は「地図をタップして指定」や、<code>35.6812,139.7671</code> のような緯度・経度の入力でもできます。Googleマップアプリで追加した経由地を自動取り込みする機能はありません。</p>
+<h2 id="navigation">4 ルート表示と音声ナビを使う</h2><ol class="steps"><li>現在地と共有した目的地がそろうと、各画面でルートを検索します。</li><li>音声を出す端末で<strong>「音声を有効にする・テスト」</strong>を押し、聞こえるか確認します。</li><li>同じ端末で<strong>「ナビ開始」</strong>を押します。</li><li>次に曲がる地点、そこまでの距離、残りの概算距離・時間が表示されます。</li></ol>
+<p>音声を両端末で有効にすると二重に案内します。車載ブラウザで音声が出ない場合は、iPhone側で有効にしてください。車のスピーカーへの出力はオーディオ設定と端末の対応によります。</p>
+<div class="table-scroll"><table><tr><th>ボタン</th><th>操作</th></tr><tr><td>ルートを表示・再検索</td><td>現在地から共有済みの経由地と目的地まで検索し直す</td></tr><tr><td>ルート全体</td><td>地図をルート全体が見える大きさにする</td></tr><tr><td>現在地を中心に</td><td>地図の現在地追従を再開する</td></tr><tr><td>ナビ停止</td><td>その端末の案内を止める。ルート表示は残る</td></tr><tr><td>目的地を解除</td><td>iPhoneから両端末の経由地と目的地を解除する</td></tr></table></div>
+<p><strong>iPhoneのSafariは表示したまま使います。</strong>画面ロック・別アプリへの切替・ヘルプの別タブ表示で位置更新が止まる場合があります。受信から15秒以上古い位置や精度の低い位置では案内を一時停止します。通信や位置取得が回復すると、新しい位置で案内を更新します。</p>
+<p>本版のナビは試験版です。渋滞・最新の通行規制・充電計画は考慮しません。設定と初回確認は停車中に行ってください。</p>
+<h2 id="tesla">5 Tesla標準ナビへ送信する</h2><p><strong>この機能は、Webの位置共有が成功しただけでは使えません。</strong>Tesla開発者登録、所有者OAuth認証、車両の仮想キー、経由地コマンド対応の署名プロキシの設定が必要です。配布ZIPの <code>TESLA_SETUP.md</code> に準備を記載しています。</p>
+<h3>所有者登録はiPhoneで初回だけ</h3><ol class="steps"><li>iPhoneで「初回のみ：iPhoneを所有者端末として登録」を開きます。</li><li>Renderの <code>TESLA_OWNER_SECRET</code> に設定したキーを一度入力し、「このiPhoneを登録」を押します。</li><li>登録後30日間、同じSafariではキーを再入力しません。許可した車載ブラウザへの転記も不要です。</li></ol>
+<p>Safariのデータ消去、プライベートモード、30日の期限切れ、所有者キー変更時は再登録が必要です。全端末を解除するにはRenderの所有者キーを変更して再デプロイします。</p>
+<h3>地点一覧を送信する</h3><ol class="steps"><li>各経由地と目的地の<strong>Google Place ID</strong>が設定されていることを確認します。Google地図で検索した地点は自動で保持します。</li><li>地点一覧を画面へ共有し、通過順を確認します。</li><li><strong>「共有済みの地点一覧をTeslaへ送信」</strong>を押します。ナビ開始と同時に送るなら「ナビ開始時にTesla標準ナビにも送信」にチェックします。</li><li>受付成功の表示後、Tesla標準ナビで経由地と目的地の順序を確認します。</li></ol>
+<p>OSM検索・地図タップ・座標入力の地点には、別途Google Place IDが必要です。<a href="https://developers.google.com/maps/documentation/javascript/examples/places-placeid-finder" target="_blank" rel="noopener">GoogleのPlace ID確認ツール</a>を使えます。</p>
+<p>Teslaへ送るのは<strong>地点と順序</strong>です。道路のルートはTeslaが再計算し、Web地図と同じ道を通るとは限りません。送信結果が不明な場合は自動再送せず、車載ナビを先に確認してください。</p>
+<h2 id="stop">6 使用を終了する</h2><p>iPhoneで<strong>「共有を停止・削除」</strong>を押します。位置情報、経由地、目的地、接続許可を削除し、車載側も接続できなくなります。タブを閉じるだけでは、サーバーの情報は直ちに消えません。</p><p>「削除に失敗しました」と表示されたら通信を確認し、停止ボタンで再試行してください。位置の送信は停止しますが、削除できなかった情報はセッション期限まで残る場合があります。</p>
+<h2 id="trouble">7 困ったとき</h2>
+<details><summary>「Load failed」やサーバーへ接続できない</summary><p>中継URLが <code>https://tesla-webmap.onrender.com</code> になっているか確認します。ハイフンとアンダースコアを間違えないでください。</p><p><a href="https://tesla-webmap.onrender.com/health" target="_blank" rel="noopener">稼働確認ページ</a>で <code>{"ok": true}</code> が出るか確認します。Renderの <code>ALLOWED_ORIGINS</code> は <code>https://ducat595.github.io</code> で、リポジトリ名や末尾のスラッシュは付けません。</p></details>
+<details><summary>4桁を入力しても地図が表示されない</summary><p>iPhoneの接続要求で「接続を許可」を押してください。許可待ちは2分間です。両端末の表示バージョンがv6かも確認します。コードの新規受付は10分間で、Render再デプロイ後は新しいコードが必要です。</p></details>
+<details><summary>「位置情報はまだありません」や更新停止になる</summary><p>iPhoneのSafariを表示し、位置情報を許可してください。座標欄だけでなく、その上の接続状態メッセージも確認します。画面ロックや別アプリへの切替は更新停止の原因になります。</p></details>
+<details><summary>地図だけ出ない、Googleの認証が失敗する</summary><p>ネット接続と外部地図サービスの読み込みを確認します。Googleを使う場合はMaps JavaScript API・Routes API・Geocoding API、課金設定、公開URLとAPIのキー制限を確認してください。キーを空欄で保存して再読み込みすると、OSMで動作確認できます。</p></details>
+<details><summary>経由地を編集したのに反映されない</summary><p>「経由地・目的地を画面へ共有」を押してください。共有済みの通過順が車載側にも表示されているか確認します。</p></details>
+<details><summary>Tesla送信が未設定、所有者確認が必要と表示される</summary><p>標準ナビへの接続設定と初回のiPhone登録を確認します。認証トークン期限切れ、仮想キー未登録、プロキシの経由地コマンド未対応でも送信できません。Webのルート表示とは別の確認です。</p></details>
+<details><summary>所有者キーを毎回入力させられる</summary><p>同じSafariを使い、プライベートモードやデータ消去を避けてください。中継URLを変えると別の登録になります。キー変更や30日の期限切れ後は再登録します。</p></details>
+<details><summary>音声が出ない</summary><p>案内する端末で「音声を有効にする・テスト」を押し、端末や車の音量を確認します。車載ブラウザが非対応ならiPhone側で試してください。</p></details>
+<h2 id="update">8 公開と更新の手順</h2><ol class="steps"><li>GitHubの <code>frontend</code> と <code>backend</code> をフォルダ構成を保って配置します。フォルダの中身を全て同じ階層へまとめません。</li><li>GitHub Pagesをmainブランチのrootで公開し、<code>/frontend/</code> の画面を開きます。</li><li>RenderのBuild Commandは <code>python -m compileall backend</code>、Start Commandは <code>python backend/server.py</code> にします。</li><li>Health Check Pathは <code>/health</code>。環境変数と公開URLを確認します。</li><li>更新後は再デプロイし、両端末を再読み込みします。右上の<strong>「かんたん接続 v6」</strong>を確認してください。</li></ol>
+<p>詳細な機能、API、保存期間、判定条件、検証範囲は仕様書に記載しています。</p><p><a class="link-button" href="specification.html">仕様書をブラウザで読む</a> <a href="tesla_webmap_specification_v6.docx">Word版をダウンロード</a></p>
+</main><footer>実機の音声、Google実キー、Tesla標準ナビへの実送信は未確認です。ヘルプ確認後は元のアプリのタブへ戻ってください。</footer></body></html>

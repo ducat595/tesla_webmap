@@ -1,3 +1,19 @@
+# v6 ヘルプと仕様書
+
+画面上部右側に「ヘルプ・仕様書」を追加しました。
+ヘルプは別タブで開きます。iPhoneで読む間は位置更新が止まる場合があるため、確認後にアプリのタブへ戻ってください。
+
+frontend/help.html に利用手順、接続認証、経由地、音声、Tesla送信、トラブル対処、更新方法を記載。
+frontend/specification.html はブラウザで読める仕様書。
+frontend/tesla_webmap_specification_v6.docx は編集できるWord版仕様書です。
+SPECIFICATION.md は仕様書の原稿です。
+
+更新する際はfrontendとbackendをフォルダごと上書きし、RenderとGitHub Pagesの更新を完了させてから両端末を再読み込み。
+右上が「かんたん接続 v6」なら更新完了です。
+4桁コードと接続許可、30日間の所有者端末登録はv5と同じ仕様です。
+
+以下は接続と設置の詳細です。
+
 # v5：4桁コード＋iPhoneで接続許可
 
 ## 更新
