@@ -37,3 +37,14 @@ class RelayTest(unittest.TestCase):
  def test_origin_and_health(self):
   self.assertEqual(self.call('/sessions','POST',{},origin='https://evil.example')[0],403)
   self.assertEqual(self.call('/health')[0],200)
+
+ def test_destination_preserves_location_and_auth(self):
+  _,s=self.call('/sessions','POST',{});path='/sessions/'+s['code'];p={'latitude':35.6,'longitude':139.7,'accuracy':12}
+  self.call(path,'PUT',p,s['token'])
+  d={'latitude':35.7,'longitude':139.8,'name':'目的地'}
+  self.assertEqual(self.call(path,'PUT',{'destination':d})[0],403)
+  self.assertEqual(self.call(path,'PUT',{'destination':{**d,'latitude':100}},s['token'])[0],400)
+  self.assertEqual(self.call(path,'PUT',{'destination':d},s['token'])[0],200)
+  result=self.call(path)[1];self.assertEqual(result['destination'],d);self.assertEqual(result['location']['latitude'],35.6);self.assertEqual(result['destinationVersion'],1)
+  self.call(path,'PUT',p,s['token']);self.assertEqual(self.call(path)[1]['destination'],d)
+  self.call(path,'PUT',{'destination':None},s['token']);self.assertIsNone(self.call(path)[1]['destination'])

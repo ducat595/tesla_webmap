@@ -1,0 +1,10 @@
+/* Independent route geometry and instruction helpers; coordinates are [lat, lng]. */
+(function(root){
+ const rad=d=>d*Math.PI/180;
+ function distance(a,b){const x=rad(b[0]-a[0]),y=rad(b[1]-a[1]);return 6371000*2*Math.asin(Math.min(1,Math.sqrt(Math.sin(x/2)**2+Math.cos(rad(a[0]))*Math.cos(rad(b[0]))*Math.sin(y/2)**2)));}
+ function cumulative(path){const out=[0];for(let i=1;i<path.length;i++)out.push(out[i-1]+distance(path[i-1],path[i]));return out;}
+ function project(p,path,cum,min=0,max=Infinity){let best=null;const scale=Math.cos(rad(p[0]));for(let i=1;i<path.length;i++){if(cum[i]<min||cum[i-1]>max)continue;const ax=rad(path[i-1][1]-p[1])*6371000*scale,ay=rad(path[i-1][0]-p[0])*6371000,bx=rad(path[i][1]-p[1])*6371000*scale,by=rad(path[i][0]-p[0])*6371000,dx=bx-ax,dy=by-ay;const t=Math.max(0,Math.min(1,-(ax*dx+ay*dy)/(dx*dx+dy*dy||1)));const along=cum[i-1]+t*(cum[i]-cum[i-1]);if(along<min||along>max)continue;const gap=Math.hypot(ax+t*dx,ay+t*dy);if(!best||gap<best.gap)best={along,gap};}return best;}
+ function instruction(m,name=''){const side={'left':'左折','right':'右折','slight left':'左方向へ進む','slight right':'右方向へ進む','sharp left':'大きく左折','sharp right':'大きく右折','uturn':'Uターン','straight':'直進'};let text;if(m.type==='arrive')text='目的地に到着';else if(m.type==='depart')text='出発して進む';else if(/roundabout|rotary/.test(m.type))text='環状交差点で'+(m.exit?m.exit+'番目の出口へ':'出口へ');else if(m.type==='merge')text=(side[m.modifier]||'前方へ進む')+'、合流';else if(m.type==='fork')text=(side[m.modifier]||'前方へ進む')+'、分岐';else text=side[m.modifier]||'道なりに進む';return text+(name?'（'+name+'）':'');}
+ function parseCoordinates(text){const m=text.trim().match(/^(-?\d+(?:\.\d+)?)\s*[,、]\s*(-?\d+(?:\.\d+)?)$/);if(!m)return null;const a=Number(m[1]),b=Number(m[2]);if(a < -90 || a>90 || b < -180 || b>180)throw Error('緯度・経度の範囲が不正です');return [a,b];}
+ const api={distance,cumulative,project,instruction,parseCoordinates};root.NavCore=api;if(typeof module!=='undefined')module.exports=api;
+})(typeof window==='undefined'?globalThis:window);
