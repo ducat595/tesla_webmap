@@ -5,19 +5,23 @@ relay=importlib.util.module_from_spec(spec);spec.loader.exec_module(relay)
 class RelayTest(unittest.TestCase):
  @classmethod
  def setUpClass(cls):
+  cls.tokens={}
   cls.server=relay.ThreadingHTTPServer(('127.0.0.1',0),relay.Handler)
   cls.url='http://127.0.0.1:'+str(cls.server.server_port)
   threading.Thread(target=cls.server.serve_forever,daemon=True).start()
  @classmethod
  def tearDownClass(cls): cls.server.shutdown();cls.server.server_close()
- def call(self,path,method='GET',data=None,token=None,origin=None):
-  headers={'Content-Type':'application/json'}
+ def call(self,path,method='GET',data=None,token=None,origin=None,extra=None,anonymous=False):
+  headers={'Content-Type':'application/json',**(extra or {})}
+  if method=='GET' and not anonymous and not token:token=self.tokens.get(path)
   if token:headers['Authorization']='Bearer '+token
   if origin:headers['Origin']=origin
   req=urllib.request.Request(self.url+path,data=json.dumps(data).encode() if data is not None else None,headers=headers,method=method)
   try:r=urllib.request.urlopen(req)
   except urllib.error.HTTPError as e:r=e
-  with r:return r.status,json.loads(r.read())
+  with r:result=(r.status,json.loads(r.read()))
+  if path=='/sessions' and result[0]==201:self.tokens['/sessions/'+result[1]['code']]=result[1]['token']
+  return result
  def test_lifecycle(self):
   code,s=self.call('/sessions','POST',{});self.assertEqual(code,201)
   path='/sessions/'+s['code'];p={'latitude':35.6,'longitude':139.7,'accuracy':12}

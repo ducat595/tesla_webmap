@@ -28,7 +28,7 @@ class TeslaBridgeTest(unittest.TestCase):
         self.env.stop();self.proxy.shutdown();self.proxy.server_close()
     def owner_call(self,path,payload,owner='a'*40):
         import urllib.request,urllib.error
-        r=urllib.request.Request(self.url+path,data=json.dumps(payload).encode(),headers={'Content-Type':'application/json','X-Tesla-Owner-Key':owner},method='POST')
+        r=urllib.request.Request(self.url+path,data=json.dumps(payload).encode(),headers={'Content-Type':'application/json','Authorization':'Bearer '+(self.tokens[path.rsplit('/',1)[0]] if owner=='a'*40 else 'wrong')},method='POST')
         try: result=urllib.request.urlopen(r)
         except urllib.error.HTTPError as e: result=e
         with result:return result.status,json.loads(result.read())
@@ -37,6 +37,8 @@ class TeslaBridgeTest(unittest.TestCase):
         d={'latitude':35.2,'longitude':139.2,'name':'目的地','placeId':'DESTINATION_ID'}
         w=[{'latitude':35.1,'longitude':139.1,'name':'経由A','placeId':'WAYPOINT_A'},{'latitude':35.15,'longitude':139.15,'name':'経由B','placeId':'WAYPOINT_B'}]
         code,p=self.call(path,'PUT',{'destination':d,'waypoints':w},s['token']);self.assertEqual(code,200)
+        _,device=self.call('/owner-device','POST',{'key':'a'*40})
+        self.assertEqual(self.call(path+'/authorize','POST',{},s['token'],extra={'X-Tesla-Device-Token':device['deviceToken']})[0],200)
         return s,path,p['destinationVersion']
     def test_order_auth_and_duplicate(self):
         s,path,v=self.plan();request={'version':v,'requestId':'fixture-request-0001'}

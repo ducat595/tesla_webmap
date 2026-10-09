@@ -4,12 +4,14 @@ import sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).parent))
 import tesla_bridge
+import device_auth
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
 sessions = {}
 lock = threading.Lock()
 vehicle_lock = threading.Lock()
+attempts={}
 TTL = 3600
 origins = set(x.strip() for x in os.getenv('ALLOWED_ORIGINS', '').split(',') if x.strip())
 
@@ -30,7 +32,7 @@ class Handler(BaseHTTPRequestHandler):
         if origin in origins:
             self.send_header('Access-Control-Allow-Origin', origin)
         self.send_header('Vary', 'Origin')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Tesla-Owner-Key')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Tesla-Owner-Key, X-Tesla-Device-Token')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
         self.send_header('Cache-Control', 'no-store')
         self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -64,12 +66,20 @@ class Handler(BaseHTTPRequestHandler):
                 if sessions[code]['expires'] < now: del sessions[code]
             if path == '/sessions' and self.command == 'POST':
                 if len(sessions) >= 200: return self.reply(429, {'error': '利用数上限です。後でお試しください'})
-                code = secrets.token_hex(8).upper()
-                while code in sessions: code = secrets.token_hex(8).upper()
+                code = f'{secrets.randbelow(10000):04d}'
+                while code in sessions: code = f'{secrets.randbelow(10000):04d}'
                 token = secrets.token_urlsafe(32)
-                sessions[code] = {'token': token, 'expires': now + TTL, 'location': None, 'destination': None, 'destinationVersion': 0, 'waypoints': [], 'teslaRequests': {}}
-                return self.reply(201, {'code': code, 'token': token, 'expiresAt': now + TTL})
+                sessions[code] = {'token': token, 'expires': now + TTL, 'location': None, 'destination': None, 'destinationVersion': 0, 'waypoints': [], 'teslaRequests': {}, 'pairs': {}, 'pairExpires': now+600, 'ownerDevice': self.headers.get('X-Tesla-Device-Token','')}
+                return self.reply(201, {'code': code, 'token': token, 'expiresAt': now + TTL, 'ownerAuthorized':device_auth.valid(sessions[code]['ownerDevice'])})
+            if path == '/owner-device' and self.command == 'POST':
+                if not self.rate_ok('owner',now,10): return self.reply(429,{'error':'所有者確認の試行回数上限です。1分後に再試行してください。'})
+                supplied=payload.get('key','')
+                if not isinstance(supplied,str) or len(device_auth.secret())<32 or not secrets.compare_digest(device_auth.secret().encode(),supplied.encode()):
+                    return self.reply(403,{'error':'所有者キーが一致しません。'})
+                return self.reply(200,{'deviceToken':device_auth.issue(),'days':30})
             parts = path.strip('/').split('/')
+            if len(parts)==3 and parts[0]=='sessions' and parts[2] in ('pair','pair-status','pending','approve','authorize'):
+                return self.pairing(parts[1],parts[2],payload,now)
             if len(parts) == 3 and parts[0] == 'sessions' and parts[2] == 'tesla-navigate' and self.command == 'POST':
                 return self.tesla_navigate(parts[1].upper(),payload,now)
             if len(parts) != 2 or parts[0] != 'sessions':
@@ -78,9 +88,10 @@ class Handler(BaseHTTPRequestHandler):
             session = sessions.get(code)
             if not session: return self.reply(404, {'error': '接続コードが違うか、期限切れ・サーバー再起動です'})
             if self.command == 'GET':
-                return self.reply(200, {'location': session['location'], 'expiresAt': session['expires'], 'destination': session['destination'], 'destinationVersion': session['destinationVersion'], 'waypoints': session['waypoints'], 'teslaConfigured': tesla_bridge.configuration_ready()})
+                if not self.reader(session): return self.reply(403,{'error':'iPhone側で接続を許可してください。'})
+                return self.reply(200, {'location': session['location'], 'expiresAt': session['expires'], 'destination': session['destination'], 'destinationVersion': session['destinationVersion'], 'waypoints': session['waypoints'], 'teslaConfigured': tesla_bridge.configuration_ready(), 'ownerAuthorized':device_auth.valid(session['ownerDevice'])})
             auth = self.headers.get('Authorization', '')
-            if not secrets.compare_digest(auth, 'Bearer ' + session['token']):
+            if not secrets.compare_digest(auth.encode(), ('Bearer ' + session['token']).encode()):
                 return self.reply(403, {'error': '送信権限がありません'})
             if self.command == 'DELETE':
                 del sessions[code]
@@ -104,13 +115,65 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(405, {'error': '未対応の操作です'})
 
 
+
+    def rate_ok(self, kind, now, limit):
+        key=(self.client_address[0],kind)
+        for k,(started,_) in list(attempts.items()):
+            if started<now-60: del attempts[k]
+        started,count=attempts.get(key,(now,0))
+        attempts[key]=(started,count+1)
+        return count<limit
+
+    def bearer(self):
+        return self.headers.get('Authorization','').removeprefix('Bearer ')
+
+    def sender(self,s): return secrets.compare_digest(self.bearer().encode(),s['token'].encode())
+
+    def reader(self,s):
+        if self.sender(s):return True
+        token=self.bearer()
+        return any(p['approved'] and secrets.compare_digest(token.encode(),p['token'].encode()) for p in s['pairs'].values())
+
+    def pairing(self,code,action,payload,now):
+        if action=='pair' and not self.rate_ok('pair',now,20): return self.reply(429,{'error':'接続試行が多すぎます。1分後に再試行してください。'})
+        s=sessions.get(code)
+        if not s:return self.reply(404,{'error':'コードが違うか、期限切れです。'})
+        if action=='pair' and self.command=='POST':
+            if now>s['pairExpires']:return self.reply(410,{'error':'4桁コードの受付期限（10分）が過ぎました。iPhoneで共有し直してください。'})
+            for k in list(s['pairs']):
+                if not s['pairs'][k]['approved'] and s['pairs'][k]['expires']<now:del s['pairs'][k]
+            if len(s['pairs'])>=5:return self.reply(429,{'error':'接続要求数の上限です。iPhoneで不要な要求を拒否してください。'})
+            identifier=secrets.token_hex(4).upper();token=secrets.token_urlsafe(32)
+            s['pairs'][identifier]={'token':token,'approved':False,'expires':now+120}
+            return self.reply(201,{'pairId':identifier,'viewerToken':token})
+        if action=='pair-status' and self.command=='GET':
+            token=self.bearer()
+            for p in s['pairs'].values():
+                if secrets.compare_digest(p['token'].encode(),token.encode()):
+                    if not p['approved'] and p['expires']<now:return self.reply(410,{'error':'接続要求が期限切れです。再接続してください。'})
+                    return self.reply(200,{'approved':p['approved']})
+            return self.reply(403,{'error':'接続要求が拒否・解除されました。'})
+        if not self.sender(s):return self.reply(403,{'error':'iPhone送信端末だけが接続を許可できます。'})
+        if action=='pending' and self.command=='GET':
+            return self.reply(200,{'ownerAuthorized':device_auth.valid(s['ownerDevice']), 'teslaConfigured':tesla_bridge.configuration_ready(), 'pending':[{'pairId':k,'secondsLeft':int(p['expires']-now)} for k,p in s['pairs'].items() if not p['approved'] and p['expires']>now]})
+        if action=='approve' and self.command=='POST':
+            p=s['pairs'].get(payload.get('pairId'))
+            if not p or p['expires']<now:return self.reply(410,{'error':'接続要求が期限切れです。'})
+            if payload.get('allow') is True:p['approved']=True
+            else:del s['pairs'][payload['pairId']]
+            return self.reply(200,{'ok':True})
+        if action=='authorize' and self.command=='POST':
+            token=self.headers.get('X-Tesla-Device-Token','')
+            if not device_auth.valid(token):return self.reply(403,{'error':'初回の所有者確認が必要です。'})
+            s['ownerDevice']=token
+            return self.reply(200,{'ownerAuthorized':True})
+        return self.reply(405,{'error':'未対応の操作です。'})
+
     def tesla_navigate(self, code, payload, now):
         session=sessions.get(code)
         if not session: return self.reply(404,{'error':'接続コードが違うか、期限切れです'})
-        configured=tesla_bridge.settings()['TESLA_OWNER_SECRET']
-        supplied=self.headers.get('X-Tesla-Owner-Key','')
-        if len(configured)<32 or not secrets.compare_digest(configured.encode(),supplied.encode()):
-            return self.reply(403,{'error':'Tesla所有者キーが未設定、または一致しません。位置共有コードだけでは送信できません。'})
+        if not self.reader(session) or not device_auth.valid(session['ownerDevice']):
+            return self.reply(403,{'error':'iPhoneで初回の所有者確認を済ませ、この端末の接続を許可してください。'})
         if payload.get('version') != session['destinationVersion']:
             return self.reply(409,{'error':'地点一覧が更新されています。最新の共有内容で送信してください。'})
         if not session['destination']: return self.reply(400,{'error':'目的地がありません'})
