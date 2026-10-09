@@ -1,3 +1,7 @@
+# v7 Tesla OAuthコールバック対応
+
+TESLA_OAUTH_SETUP.mdの設定手順を先に参照してください。Word仕様書はv6の参照資料です。v7追加仕様はTESLA_OAUTH_SETUP.mdとヘルプの追記が優先します。
+
 # v6 ヘルプと仕様書
 
 画面上部右側に「ヘルプ・仕様書」を追加しました。

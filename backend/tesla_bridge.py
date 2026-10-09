@@ -1,5 +1,6 @@
 """One ordered waypoints command to a configured signing proxy. No automatic retries."""
 import json, os, re, urllib.error, urllib.request
+import tesla_oauth
 from urllib.parse import urlsplit
 
 class BridgeError(Exception):
@@ -9,7 +10,9 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *args): return None
 
 def settings():
-    return {k: os.getenv(k, '').strip() for k in ('TESLA_COMMAND_PROXY_URL','TESLA_ACCESS_TOKEN','TESLA_VIN','TESLA_OWNER_SECRET')}
+    s={k: os.getenv(k, '').strip() for k in ('TESLA_COMMAND_PROXY_URL','TESLA_ACCESS_TOKEN','TESLA_VIN','TESLA_OWNER_SECRET')}
+    s['TESLA_ACCESS_TOKEN']=tesla_oauth.access_token() or s['TESLA_ACCESS_TOKEN']
+    return s
 
 def configuration_ready():
     s = settings()

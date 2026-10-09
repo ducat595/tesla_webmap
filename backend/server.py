@@ -5,8 +5,10 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).parent))
 import tesla_bridge
 import device_auth
+import tesla_oauth
+from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qs
 
 sessions = {}
 lock = threading.Lock()
@@ -51,6 +53,8 @@ class Handler(BaseHTTPRequestHandler):
         path = urlsplit(self.path).path
         if path == '/health' and self.command == 'GET':
             return self.reply(200, {'ok': True})
+        if path in ('/auth/tesla/callback','/auth/tesla/launch') and self.command == 'GET':
+            return self.oauth_browser(path)
         if self.headers.get('Origin') and self.headers['Origin'] not in origins:
             return self.reply(403, {'error': '許可されていない公開元です。ALLOWED_ORIGINSを確認してください。'})
         try:
@@ -60,6 +64,11 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(payload, dict): raise ValueError()
         except (ValueError, json.JSONDecodeError):
             return self.reply(400, {'error': '不正なリクエストです'})
+        if path == '/auth/tesla/start' and self.command == 'POST':
+            try:
+                url=tesla_oauth.begin(self.headers.get('X-Tesla-Device-Token',''))
+                return self.reply(200, {'url':url})
+            except tesla_oauth.OAuthError as e:return self.reply(400,{'error':str(e)})
         with lock:
             now = time.time()
             for code in list(sessions):
@@ -115,6 +124,24 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(405, {'error': '未対応の操作です'})
 
 
+
+    def oauth_browser(self,path):
+        query=parse_qs(urlsplit(self.path).query)
+        cookie='tesla_oauth=; Path=/auth/tesla/; Secure; HttpOnly; SameSite=Lax; Max-Age=0'
+        try:
+            if path.endswith('/launch'):
+                url,value=tesla_oauth.launch(query)
+                self.send_response(303);self.send_header('Location',url)
+                self.send_header('Set-Cookie','tesla_oauth='+value+'; Path=/auth/tesla/; Secure; HttpOnly; SameSite=Lax; Max-Age=600')
+                self.send_header('Cache-Control','no-store');self.send_header('Referrer-Policy','no-referrer');self.end_headers();return
+            tesla_oauth.callback(query,self.headers.get('Cookie',''))
+            code=200;message='Teslaログインが完了しました。下のリンクからアプリへ戻り、位置共有を開始し直してください。署名プロキシ・車両仮想キーの設定は別途必要です。認証情報はサーバー再起動または有効期限で失われます。'
+        except tesla_oauth.OAuthError as e:code=400;message=str(e)
+        self.send_response(code);self.send_header('Set-Cookie',cookie)
+        self.send_header('Content-Type','text/html; charset=utf-8');self.send_header('Cache-Control','no-store')
+        self.send_header('Referrer-Policy','no-referrer');self.send_header('Content-Security-Policy',"default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'")
+        self.end_headers()
+        self.wfile.write(('<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tesla認証</title><body style="font-family:sans-serif;padding:32px;line-height:1.8"><h1>Tesla認証</h1><p>'+escape(message)+'</p><p><a href="https://ducat595.github.io/tesla_webmap/frontend/">アプリへ戻る</a></p></body></html>').encode())
 
     def rate_ok(self, kind, now, limit):
         key=(self.client_address[0],kind)
