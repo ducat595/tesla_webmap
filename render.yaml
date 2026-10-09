@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: tesla-location-relay
+    runtime: python
+    buildCommand: python -m compileall backend
+    startCommand: python backend/server.py
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: ALLOWED_ORIGINS
+        sync: false
